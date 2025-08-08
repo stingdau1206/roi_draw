@@ -9,6 +9,14 @@ int main(int argc, char *argv[])
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
 #endif
 
+    int streamWidth = 640;
+    int streamHeight = 360;
+
+    if (argc >= 3) {
+        streamWidth = QString(argv[1]).toInt();
+        streamHeight = QString(argv[2]).toInt();
+    }
+
     QGuiApplication app(argc, argv);
 
     QQmlApplicationEngine engine;
@@ -19,6 +27,8 @@ int main(int argc, char *argv[])
     // 2. Đăng ký instance này như một context property.
     //    Điều này cho phép QML truy cập nó bằng tên "roiManager".
     engine.rootContext()->setContextProperty("roiManager", &roiManager);
+    engine.rootContext()->setContextProperty("streamWidth", streamWidth);
+    engine.rootContext()->setContextProperty("streamHeight", streamHeight);
 
     const QUrl url(QStringLiteral("qrc:/main.qml"));
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreated,

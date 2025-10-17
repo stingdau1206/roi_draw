@@ -82,6 +82,18 @@ ApplicationWindow {
                     fillMode: Image.PreserveAspectFit
                 }
 
+                // MouseArea để hiển thị tọa độ con trỏ
+                MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    onPositionChanged: (mouse) => {
+                        coordinateLabel.text = "X: " + mouse.x.toFixed(0) + ", Y: " + mouse.y.toFixed(0)
+                    }
+                    onExited: {
+                        coordinateLabel.text = ""
+                    }
+                }
+
                 Rectangle {
                     id: roiRect
                     x: 0
@@ -92,8 +104,29 @@ ApplicationWindow {
                     border.color: "limegreen"
                     border.width: 2
                     visible: false
+                    property point startDragPos: Qt.point(0, 0)
+
+                    MouseArea {
+                        anchors.fill: parent
+                        drag.target: parent
+                        cursorShape: Qt.SizeAllCursor
+                        enabled: parent.visible && !videoContainer.isDrawingMode
+
+                        onPressed: (mouse) => {
+                            parent.startDragPos = Qt.point(mouse.x, mouse.y)
+                        }
+
+                        onPositionChanged: (mouse) => {
+                            if (!pressed) return;
+                            var dx = mouse.x - parent.startDragPos.x
+                            var dy = mouse.y - parent.startDragPos.y
+                            parent.x += dx
+                            parent.y += dy
+                        }
+                    }
                 }
 
+                // MouseArea để vẽ ROI bằng cách kéo thả
                 MouseArea {
                     id: mouseArea
                     anchors.fill: parent
@@ -159,13 +192,15 @@ ApplicationWindow {
             }
         }
 
-
         // Hàng 2: Các nút điều khiển ROI và kích thước
-        RowLayout {
+        GridLayout {
             Layout.alignment: Qt.AlignHCenter
             Layout.fillWidth: true
-            spacing: 10
+            columns: 6
+            rowSpacing: 5
+            columnSpacing: 10
 
+            // Dòng 1: Kích thước nguồn và các nút điều khiển chính
             Label { text: "Source Width:"; verticalAlignment: Text.AlignVCenter }
             TextField {
                 id: sourceWidthInput
@@ -174,23 +209,14 @@ ApplicationWindow {
                 validator: IntValidator { bottom: 1 }
             }
 
-            Label { text: "Source Height:"; verticalAlignment: Text.AlignVCenter }
-            TextField {
-                id: sourceHeightInput
-                text: "720"
-                Layout.preferredWidth: 80
-                validator: IntValidator { bottom: 1 }
-            }
-
             Button {
                 id: createRoiButton
-                text: "Create ROI"
+                text: "Create ROI (Drag)"
                 onClicked: {
                     videoContainer.isDrawingMode = true
                     createRoiButton.enabled = false
                 }
             }
-
             Button {
                 id: showCoordinatesButton
                 text: "Show Coordinates"
@@ -224,6 +250,17 @@ ApplicationWindow {
                     statusLabel.text = "Đã hiển thị tọa độ ROI dưới dạng JSON.";
                 }
             }
+            Label { text: "" } // Spacer
+            Label { text: "" } // Spacer
+
+
+            Label { text: "Source Height:"; verticalAlignment: Text.AlignVCenter }
+            TextField {
+                id: sourceHeightInput
+                text: "720"
+                Layout.preferredWidth: 80
+                validator: IntValidator { bottom: 1 }
+            }
 
             Button {
                 id: clearButton
@@ -236,19 +273,74 @@ ApplicationWindow {
                     videoContainer.isDrawingMode = false
                     createRoiButton.enabled = true
                     coordinatesDisplay.text = ""
-                    imageOutput.source = ""
-                    imageOutput.visible = false
-                    videoOutput.visible = true
-                    statusLabel.text = "Đã xóa ROI và ảnh."
+                    roiXInput.text = ""
+                    roiYInput.text = ""
+                    roiWInput.text = ""
+                    roiHInput.text = ""
+                    statusLabel.text = "Đã xóa ROI."
+                }
+            }
+             Label { text: "" } // Spacer
+             Label { text: "" } // Spacer
+             Label { text: "" } // Spacer
+
+
+            // Dòng 2: Nhập tọa độ thủ công
+            Label { text: "X:" }
+            TextField { id: roiXInput; placeholderText: "x"; validator: IntValidator{} }
+
+            Label { text: "Y:" }
+            TextField { id: roiYInput; placeholderText: "y"; validator: IntValidator{} }
+
+            Label { text: "W:" }
+            TextField { id: roiWInput; placeholderText: "width"; validator: IntValidator{ bottom: 1 } }
+
+            Label { text: "H:" }
+            TextField { id: roiHInput; placeholderText: "height"; validator: IntValidator{ bottom: 1 } }
+
+            Button {
+                text: "Draw from Input"
+                Layout.columnSpan: 2 // Nút này chiếm 2 cột
+                onClicked: {
+                    var x = parseInt(roiXInput.text)
+                    var y = parseInt(roiYInput.text)
+                    var w = parseInt(roiWInput.text)
+                    var h = parseInt(roiHInput.text)
+
+                    if (isNaN(x) || isNaN(y) || isNaN(w) || isNaN(h) || w <= 0 || h <= 0) {
+                        statusLabel.text = "Lỗi: Giá trị nhập vào không hợp lệ."
+                        return
+                    }
+
+                    var maxWidth = videoContainer.width;
+                    var maxHeight = videoContainer.height;
+                    roiRect.x = Math.max(0, Math.min(x, maxWidth));
+                    roiRect.y = Math.max(0, Math.min(y, maxHeight));
+                    roiRect.width = Math.min(w, maxWidth - roiRect.x);
+                    roiRect.height = Math.min(h, maxHeight - roiRect.y);
+
+                    roiRect.visible = true
+                    createRoiButton.enabled = true
+                    videoContainer.isDrawingMode = false
+                    statusLabel.text = "Đã vẽ ROI từ giá trị nhập vào."
                 }
             }
         }
 
-        // Label để hiển thị trạng thái
-        Label {
-            id: statusLabel
+        // Hàng 3: Label để hiển thị trạng thái và tọa độ
+        RowLayout {
+            Layout.fillWidth: true
             Layout.alignment: Qt.AlignHCenter
-            text: "Chào mừng!"
+            Label {
+                id: statusLabel
+                text: "Chào mừng!"
+            }
+            Label {
+                id: coordinateLabel
+                font.bold: true
+                Layout.leftMargin: 20
+                text: ""
+            }
         }
     }
 }

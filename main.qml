@@ -241,7 +241,8 @@ ApplicationWindow {
                             topRight,
                             bottomRight,
                             bottomLeft
-                        ]
+                        ],
+                        "xywh": [roiRect.x, roiRect.y, roiRect.width, roiRect.height]
                     };
 
                     var jsonString = JSON.stringify(roiData, null, 4);
